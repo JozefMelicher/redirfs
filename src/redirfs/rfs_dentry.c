@@ -761,6 +761,7 @@ static int rfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
     struct rfs_dentry *rdentry;
     struct rfs_info *rinfo;
     struct rfs_context rcont;
+    struct rfs_file *rfile;
     RFS_DEFINE_REDIRFS_ARGS(rargs);
 
     rdentry = rfs_dentry_find(dentry);
