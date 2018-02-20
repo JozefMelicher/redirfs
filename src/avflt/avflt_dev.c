@@ -134,6 +134,8 @@ static ssize_t avflt_dev_write(struct file *file, const char __user *buf,
         iter = delimeter + 1;
         if (iter - buf < size) {
             delimeter = memchr(iter, '\0', size - (iter - buf));
+        } else {
+            break;
         }
     }
     return iter - buf;
