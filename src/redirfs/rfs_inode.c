@@ -690,6 +690,39 @@ struct dentry *rfs_lookup(struct inode *dir, struct dentry *dentry,
 			dentry = rargs.rv.rv_dentry;
 		if (rfs_dcache_rdentry_add(dentry, rinfo))
 			BUG();
+		if (nd) {
+			file = !IS_ERR(nd->intent.open.file) ? nd->intent.open.file : NULL;
+			if (file && (nd->flags & LOOKUP_OPEN) && (file->f_dentry == dentry) && (file->f_dentry->d_inode && dentry->d_inode)) {
+				/*
+				 * File was open and can be used by f_op -> register it to rfs.
+				 * e.g: NFS first open of file
+				 */
+				rfs_pr_debug("flags=0x%x, open_flags=0x%x, "
+							 "file(%p)->f_dentry(%p)->d_inode(%p), dentry(%p)->d_inode(%p)",
+							 nd->flags,
+							 nd->intent.open.flags,
+							 file,
+							 file->f_dentry,
+							 file->f_dentry->d_inode,
+							 dentry,
+							 dentry->d_inode);
+				if (S_ISREG(nd->intent.open.file->f_mode)) {
+					/*
+					 * Emulate open operation for redirfs filters.
+					 */
+					rfile = rfs_file_find_with_open_flts(file);
+					if (IS_ERR(rfile)) {
+						d_drop(dentry);
+						dentry = (struct dentry *)rfile;
+					}
+				} else {
+					rfile = rfs_file_add(file);
+					if (IS_ERR(rfile))
+						BUG();
+				}
+				rfs_file_put(rfile);
+			}
+		}
 	}
 exit:
     rfs_inode_put(rinode);
@@ -698,7 +731,7 @@ exit:
     return rargs.rv.rv_dentry;
 }
 
-#else
+#else // LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
 
 static struct dentry *rfs_lookup(struct inode *dir, struct dentry *dentry,
         unsigned int flags)

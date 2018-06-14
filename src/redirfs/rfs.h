@@ -53,6 +53,8 @@
     #define f_inode     f_path.dentry->d_inode
 #endif
 
+#define RFS_PATH_WITH_MNT
+
 /*
  * do not replace NULL operations to preserve file system driver semantics
  */
@@ -377,7 +379,7 @@ struct rfs_path {
     struct rfs_chain *rinch;
     struct rfs_chain *rexch;
 #ifdef RFS_PATH_WITH_MNT
-    struct vfsmount *mnt;
+    struct rfs_vfsmount *rmnt;
 #endif
     char*  pathname;
     struct dentry *dentry;
@@ -394,6 +396,9 @@ struct rfs_path *rfs_path_find_id(int id);
 int rfs_path_get_info(struct rfs_flt *rflt, char *buf, int size);
 int rfs_fsrename(struct inode *old_dir, struct dentry *old_dentry,
         struct inode *new_dir, struct dentry *new_dentry);
+#ifdef RFS_PATH_WITH_MNT
+void rfs_path_remove_all_under_mnt(struct rfs_vfsmount *mnt);
+#endif
 
 struct rfs_root {
     struct list_head list;
@@ -966,6 +971,18 @@ void rfs_data_remove(struct list_head *head);
     }
 
 #endif
+
+struct rfs_vfsmount {
+    struct list_head list;
+    atomic_t count;
+    struct vfsmount *mnt;
+    const struct super_operations *s_ops_old;
+    struct super_operations s_ops_new;
+};
+
+struct rfs_vfsmount *rfs_vfsmount_add(struct vfsmount *mnt);
+void rfs_vfsmount_remove(struct rfs_vfsmount *rmnt);
+void rfs_vfsmount_put(struct rfs_vfsmount *rmnt);
 
 #endif /* _RFS_H */
 

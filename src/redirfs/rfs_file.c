@@ -36,6 +36,43 @@
 
 static rfs_kmem_cache_t *rfs_file_cache = NULL;
 
+struct file_operations rfs_reg_file_ops = {
+    .open = rfs_open,
+    .read = rfs_read,
+    .write = rfs_write,
+    .llseek = rfs_llseek,
+    .release = rfs_release,
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3,14,0))
+    .read_iter = rfs_read_iter,
+    .write_iter = rfs_write_iter,
+#endif
+    .poll = rfs_poll,
+    .unlocked_ioctl = rfs_unlocked_ioctl,
+    .compat_ioctl = rfs_compat_ioctl,
+    .mmap = rfs_mmap,
+    .flush = rfs_flush,
+    .fsync = rfs_fsync,
+    .fasync = rfs_fasync,
+    .lock = rfs_lock,
+    .sendpage = rfs_sendpage,
+    .get_unmapped_area = rfs_get_unmapped_area,
+    .flock = rfs_flock,
+    .splice_write = rfs_splice_write,
+    .splice_read = rfs_splice_read,
+    .setlease = rfs_setlease,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
+    .fallocate = rfs_fallocate,
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
+    .show_fdinfo = rfs_show_fdinfo,
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0))
+    .copy_file_range = rfs_copy_file_range,
+    .clone_file_range = rfs_clone_file_range,
+	.dedupe_file_range = rfs_dedupe_file_range,
+#endif
+};
+
 /*---------------------------------------------------------------------------*/
 
 static void rfs_file_del(struct rfs_file *rfile);

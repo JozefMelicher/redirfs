@@ -50,9 +50,6 @@ static struct rfs_path *rfs_path_alloc(struct vfsmount *mnt,
 
     INIT_LIST_HEAD(&rpath->list);
     INIT_LIST_HEAD(&rpath->rroot_list);
-#ifdef RFS_PATH_WITH_MNT
-    rpath->mnt = mntget(mnt);
-#endif
     rpath->dentry = dget(dentry);
     atomic_set(&rpath->count, 1);
     
@@ -84,8 +81,18 @@ static struct rfs_path *rfs_path_alloc(struct vfsmount *mnt,
             err = -ENOMEM;
     } while(-ENAMETOOLONG == err);
     
-    if (err)
+    if (err) {
         rfs_path_put(rpath);
+    } else {
+#ifdef RFS_PATH_WITH_MNT
+        rpath->rmnt = rfs_vfsmount_add(mnt);
+        if (IS_ERR(rpath->rmnt)) {
+            err = PTR_ERR (rpath->rmnt);
+            rfs_path_put(rpath);
+        }
+#endif
+    }
+    rfs_pr_debug("rpath=%p", err ? NULL : rpath);
 
     return err ? ERR_PTR(err) : rpath;
 }
@@ -112,11 +119,13 @@ void rfs_path_put(struct rfs_path *rpath)
 
     dput(rpath->dentry);
 #ifdef RFS_PATH_WITH_MNT
-    mntput(rpath->mnt);
+    rfs_vfsmount_put(rpath->rmnt);
 #endif
 
     if (rpath->pathname)
         kfree(rpath->pathname);
+
+    rfs_pr_debug("rpath=%p", rpath);
 
     kfree(rpath);
 }
@@ -129,7 +138,7 @@ struct rfs_path *rfs_path_find(struct vfsmount *mnt,
 
     list_for_each_entry(rpath, &rfs_path_list, list) {
 #ifdef RFS_PATH_WITH_MNT
-        if (rpath->mnt != mnt) 
+        if (rpath->rmnt->mnt != mnt) 
             continue;
 #endif
 
@@ -435,6 +444,23 @@ exit:
     return rpath;
 }
 
+static int redirfs_rem_path_unlocked(redirfs_filter filter, struct rfs_path *rpath)
+{
+    int rv;
+    if (!filter || IS_ERR(filter) || !rpath)
+        return -EINVAL;
+    if (rfs_chain_find(rpath->rinch, filter) != -1) {
+        rv = rfs_path_rem_include(rpath, filter);
+    } else if (rfs_chain_find(rpath->rexch, filter) != -1) {
+        rv = rfs_path_rem_exclude(rpath, filter);
+    } else {
+        rv = -EINVAL;
+
+    }
+    rfs_path_rem(rpath);
+    return rv;
+}
+
 int redirfs_rem_path(redirfs_filter filter, redirfs_path path)
 {
     struct rfs_path *rpath = (struct rfs_path *)path;
@@ -442,25 +468,17 @@ int redirfs_rem_path(redirfs_filter filter, redirfs_path path)
 
     might_sleep();
 
-    if (!filter || IS_ERR(filter) || !path)
-        return -EINVAL;
-
     rfs_rename_lock(rpath->dentry->d_inode->i_sb);
     rfs_mutex_lock(&rfs_path_mutex);
 
-    if (rfs_chain_find(rpath->rinch, filter) != -1)
-        rv = rfs_path_rem_include(path, filter);
-
-    else if (rfs_chain_find(rpath->rexch, filter) != -1)
-        rv = rfs_path_rem_exclude(path, filter);
-
-    else
-        rv = -EINVAL;
-
-    rfs_path_rem(rpath);
+    rv = redirfs_rem_path_unlocked(filter, rpath);
 
     rfs_mutex_unlock(&rfs_path_mutex);
     rfs_rename_unlock(rpath->dentry->d_inode->i_sb);
+
+#ifdef RFS_PATH_WITH_MNT
+    rfs_vfsmount_remove(rpath->rmnt);
+#endif
 
     return rv;
 }
@@ -616,7 +634,7 @@ struct redirfs_path_info *redirfs_get_path_info(redirfs_filter filter,
     }
 
 #ifdef RFS_PATH_WITH_MNT
-    info->mnt = mntget(rpath->mnt);
+    info->mnt = mntget(rpath->rmnt->mnt);
 #endif
     info->dentry = dget(rpath->dentry);
 
@@ -1020,6 +1038,75 @@ exit:
     rfs_dentry_put(rdentry);
     return rv;
 }
+
+struct rfs_path_remove {
+    struct rfs_path *rpath;
+    struct rfs_flt* rflt;
+    struct list_head list; 
+};
+
+#ifdef RFS_PATH_WITH_MNT
+
+void rfs_path_remove_all_under_mnt(struct rfs_vfsmount *rmnt)
+{
+    struct rfs_path *rpath;
+    struct rfs_path *rpath_tmp;
+    struct rfs_chain *rchain;
+    int rfs_flt_idx;
+    struct rfs_path_remove rfs_path_remove_list;
+    struct rfs_path_remove *rpath_remove;
+    struct rfs_path_remove *rpath_remove_tmp;
+    int was_removed_any_item;
+    int was_removed_item;
+    
+    INIT_LIST_HEAD(&rfs_path_remove_list.list);
+
+    rfs_mutex_lock(&rfs_path_mutex); 
+    list_for_each_entry_safe(rpath, rpath_tmp, &rfs_path_list, list) {
+        rfs_path_get(rpath);
+        if (rpath->rmnt == rmnt) {
+            rchain = rfs_chain_get(rpath->rroot->rinfo->rchain);
+            for (rfs_flt_idx = 0; rfs_flt_idx < rchain->rflts_nr; rfs_flt_idx++) {
+                rpath_remove = kmalloc(sizeof(*rpath_remove), GFP_KERNEL);
+                rpath_remove->rpath = rfs_path_get(rpath);
+                rpath_remove->rflt = rfs_flt_get(rchain->rflts[rfs_flt_idx]);
+                INIT_LIST_HEAD(&rpath_remove->list);
+                list_add_tail(&rpath_remove->list, &rfs_path_remove_list.list);
+            }
+            rfs_chain_put(rchain);
+        }
+        rfs_path_put(rpath);
+    }
+
+    do {
+        was_removed_any_item = false;
+        list_for_each_entry_safe(rpath_remove, rpath_remove_tmp, &rfs_path_remove_list.list, list) {
+            was_removed_item = false;
+            rfs_rename_lock(rpath_remove->rpath->dentry->d_inode->i_sb);
+        
+            if (redirfs_rem_path_unlocked(rpath_remove->rflt, rpath_remove->rpath)) {
+                was_removed_item = false;
+                rfs_pr_debug("cannot remove path \"%s\"", rpath_remove->rpath->pathname);
+            } else {
+                was_removed_item = true;
+                was_removed_any_item = true;
+                rfs_pr_debug("removed path \"%s\"", rpath_remove->rpath->pathname);
+            }
+            rfs_rename_unlock(rpath_remove->rpath->dentry->d_inode->i_sb);
+        
+            if (was_removed_item) {
+                rfs_path_put(rpath_remove->rpath);
+                rfs_flt_put(rpath_remove->rflt);
+
+                list_del(&rpath_remove->list);
+                kfree(rpath_remove);
+            }
+        }
+    } while (was_removed_any_item);
+
+    rfs_mutex_unlock(&rfs_path_mutex);
+}
+#endif
 
 EXPORT_SYMBOL(redirfs_get_path);
 EXPORT_SYMBOL(redirfs_put_path);
