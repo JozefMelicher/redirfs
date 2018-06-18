@@ -593,9 +593,9 @@ static int lookup_cifs_rfs_dcache_rdentry_add(unsigned int flags, struct dentry 
 	if ((flags & LOOKUP_OPEN) && !(flags & LOOKUP_EXCL)) {
 		if (rfs_dcache_rdentry_add(dentry, rinfo))
 			BUG();
-        return 0;
+		return 0;
 	}
-    return -1;
+	return -1;
 }
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0))
@@ -1615,7 +1615,7 @@ int rfs_rename(struct inode *old_dir, struct dentry *old_dentry,
         rfs_precall_flts(rinfo_old->rchain, &rcont_old, &rargs))
         goto skip;
 
-    if (RFS_IS_IOP_SET(rinode_new, rargs.type.id) &&
+    if (rinode_new && RFS_IS_IOP_SET(rinode_new, rargs.type.id) &&
         rfs_precall_flts_rename(rinfo_new, &rcont_new, &rargs))
         goto skip;
 
@@ -1634,7 +1634,7 @@ skip:
                 rargs.args.i_rename.new_dir,
                 rargs.args.i_rename.new_dentry);
 
-    if (RFS_IS_IOP_SET(rinode_new, rargs.type.id))
+    if (rinode_new && RFS_IS_IOP_SET(rinode_new, rargs.type.id))
         rfs_postcall_flts_rename(rinfo_new, &rcont_new, &rargs);
     if (RFS_IS_IOP_SET(rinode_old, rargs.type.id))
         rfs_postcall_flts(rinfo_old->rchain, &rcont_old, &rargs);
@@ -1694,7 +1694,7 @@ int rfs_rename(struct inode *old_dir, struct dentry *old_dentry,
         rfs_precall_flts(rinfo_old->rchain, &rcont_old, &rargs))
         goto skip;
 
-    if (RFS_IS_IOP_SET(rinode_new, rargs.type.id) &&
+    if (rinode_new && RFS_IS_IOP_SET(rinode_new, rargs.type.id) &&
         rfs_precall_flts_rename(rinfo_new, &rcont_new, &rargs))
         goto skip;
 
@@ -1731,7 +1731,7 @@ skip:
                 rargs.args.i_rename.new_dir,
                 rargs.args.i_rename.new_dentry);
 
-    if (RFS_IS_IOP_SET(rinode_new, rargs.type.id))
+    if (rinode_new && RFS_IS_IOP_SET(rinode_new, rargs.type.id))
         rfs_postcall_flts_rename(rinfo_new, &rcont_new, &rargs);
     if (RFS_IS_IOP_SET(rinode_old, rargs.type.id))
         rfs_postcall_flts(rinfo_old->rchain, &rcont_old, &rargs);

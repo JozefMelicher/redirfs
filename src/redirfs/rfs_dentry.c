@@ -172,8 +172,8 @@ static void rfs_dentry_free(struct rfs_object *robject)
     rfs_data_remove(&rdentry->data);
     
 #ifndef RFS_PER_OBJECT_OPS
-        if (rdentry->d_rhops)
-            rfs_object_put(&rdentry->d_rhops->robject);
+    if (rdentry->d_rhops)
+        rfs_object_put(&rdentry->d_rhops->robject);
 #endif /* !RFS_PER_OBJECT_OPS */
 
     kmem_cache_free(rfs_dentry_cache, rdentry);
