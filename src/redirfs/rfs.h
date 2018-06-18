@@ -56,6 +56,9 @@
 #define RFS_PATH_WITH_MNT
 
 /*
+ * Add operation @f of type @op to the @ps_new struct if @f differs from old one
+ * in @ops_old.
+ *
  * do not replace NULL operations to preserve file system driver semantics
  */
 #define RFS_ADD_OP(ops_new, ops_old, op, f) \
@@ -63,7 +66,10 @@
     
 #define RFS_ADD_OP_MGT(ops_new, ops_old, op, f) \
     ((ops_new.op != f) ? (ops_new.op = f) : (void)0)
-
+/*
+ * Remove operation of type @op from struct @ops_new and replace it by old one
+ * from @ops_old or NULL.
+ */
 #define RFS_REM_OP(ops_new, ops_old, op) \
     (ops_new.op = (ops_old ? ops_old->op : NULL))
 
@@ -211,8 +217,19 @@
 
     #define RFS_IOP_BIT(idc) (RFS_IDC_TO_OP_ID(idc) - RFS_OP_i_start)
 
+    /**
+     * Check if inode operation with ID @idc (one of enum redirfs_op_idc)
+     * is set in rfs_info @ri.
+     */
     #define RFS_IS_IOP_SET(ri, idc) (test_bit(RFS_IOP_BIT(idc), ri->i_op_bitfield))
 
+    /**
+     * RFS_SET_IOP - set redirfs inode operation
+     * @ri struct rfs_inode
+     * @idc inode oparation ID (from enum redirfs_op_idc)
+     * @op operation name (e.g. setattr, unlink, ...)
+     * @f function pointer to be set as instead of the old operation
+     */
     #define RFS_SET_IOP(ri, idc, op, f) \
         do { \
             int nr = RFS_IOP_BIT(idc); \
@@ -258,6 +275,10 @@
 
     #define RFS_AOP_BIT(idc) (RFS_IDC_TO_OP_ID(idc) - RFS_OP_a_start)
 
+    /*
+    * Check whether adress space operation with ID idc (one of enum redirfs_op_idc)
+    * is set in rfs_info ri.
+    */
     #define RFS_IS_AOP_SET(ri, idc) (test_bit(RFS_IOP_BIT(idc), ri->a_op_bitfield))
 
     #define RFS_SET_AOP(ri, idc, op, f) \

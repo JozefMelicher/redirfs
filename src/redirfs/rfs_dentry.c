@@ -983,6 +983,8 @@ void rfs_dentry_set_ops(struct rfs_dentry *rdentry)
         DBG_BUG_ON(rdentry->op_old != rdentry->dentry->d_op &&
                    rdentry->dentry->d_op != rdentry->d_rhops->new.d_op);
         DBG_BUG_ON(!rdentry->d_rhops->new.d_op);
+
+        /* assign new operations to dentry */
         if (rdentry->dentry->d_op != rdentry->d_rhops->new.d_op)
             rdentry->dentry->d_op = rdentry->d_rhops->new.d_op;
     }

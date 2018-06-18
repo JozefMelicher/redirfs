@@ -199,6 +199,10 @@ enum rfs_op_id {
 //
 // the new code should use RFS_OP_IDC macro instead of xtending
 // the enum redirfs_op_idc type
+// *DOP* are dentry operations
+// *IOP* are inode oprations
+// *FOP* are file operations
+// *AOP* are address space operations
 //
 enum redirfs_op_idc {
     REDIRFS_NONE_DOP_D_REVALIDATE = RFS_OP_IDC(RFS_INODE_DNONE, RFS_OP_d_revalidate),

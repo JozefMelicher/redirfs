@@ -770,6 +770,8 @@ void rfs_file_set_ops(struct rfs_file *rfile)
     DBG_BUG_ON(rfile->op_old != rfile->file->f_op &&
                rfile->file->f_op != rfile->f_rhops->new.f_op);
     DBG_BUG_ON(!rfile->f_rhops->new.f_op);
+
+    /* assign new operations to file */
     if (rfile->file->f_op != rfile->f_rhops->new.f_op)
         rfile->file->f_op = rfile->f_rhops->new.f_op;
 #endif /* !RFS_PER_OBJECT_OPS */

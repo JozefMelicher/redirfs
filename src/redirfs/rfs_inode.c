@@ -372,6 +372,10 @@ struct rfs_inode *rfs_inode_add(struct inode *inode, struct rfs_info *rinfo)
 
 /*---------------------------------------------------------------------------*/
 
+/**
+ * rfs_inode_del - delete @rinode
+ * Return original operation back to inode.
+ */
 void rfs_inode_del(struct rfs_inode *rinode)
 {
     if (!atomic_dec_and_test(&rinode->nlink))
@@ -774,13 +778,13 @@ static struct dentry *rfs_lookup(struct inode *dir, struct dentry *dentry,
 
     rfs_context_deinit(&rcont);
 
-    if (IS_ERR(rargs.rv.rv_dentry))
+    if (IS_ERR(rargs.rv.rv_dentry)) //rv_dentry can be even NULL what is not error
         goto exit;
 
     if (is_fs_with_name("cifs", dir)) {
 		lookup_cifs_rfs_dcache_rdentry_add(flags, dentry, rinfo);
     } else {
-        if (rargs.rv.rv_dentry)
+        if (rargs.rv.rv_dentry) // dentry was moved to rv_dentry
             dentry = rargs.rv.rv_dentry;
         if (rfs_dcache_rdentry_add(dentry, rinfo))
             BUG();
@@ -1932,6 +1936,8 @@ void rfs_inode_set_ops(struct rfs_inode *rinode)
         DBG_BUG_ON(rinode->op_old != rinode->inode->i_op &&
                    rinode->inode->i_op != rinode->i_rhops->new.i_op);
         DBG_BUG_ON(!rinode->i_rhops->new.i_op);
+
+        /* assign new operations to inode */
         if (rinode->inode->i_op != rinode->i_rhops->new.i_op)
             rinode->inode->i_op = rinode->i_rhops->new.i_op;
 
